@@ -4,7 +4,7 @@ const expect = require("@truffle/expect");
 const TruffleError = require("@truffle/error");
 const Resolver = require("@truffle/resolver");
 const Artifactor = require("@truffle/artifactor");
-const Ganache = require("ganache-core/public-exports");
+const Ganache = require("ganache");
 const Provider = require("@truffle/provider");
 
 const Environment = {
@@ -26,7 +26,7 @@ const Environment = {
   },
 
   // Ensure you call Environment.detect() first.
-  fork: async function (config) {
+  fork: async function (config, ganacheOptions) {
     expect.options(config, ["from", "provider", "networks", "network"]);
 
     const interfaceAdapter = createInterfaceAdapter({
@@ -47,10 +47,10 @@ const Environment = {
     const upstreamNetwork = config.network;
     const upstreamConfig = config.networks[upstreamNetwork];
     const forkedNetwork = config.network + "-fork";
-    const ganacheOptions = {
+    ganacheOptions = {
+      ...ganacheOptions,
       fork: config.provider,
-      gasLimit: block.gasLimit,
-      _chainId: 1337 //temporary until Ganache v3!
+      gasLimit: block.gasLimit
     };
     if (accounts.length > 0) ganacheOptions.unlocked_accounts = accounts;
 

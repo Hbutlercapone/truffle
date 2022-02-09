@@ -3,7 +3,7 @@ const debug = debugModule("debugger:test:load");
 
 import { assert } from "chai";
 
-import Ganache from "ganache-core";
+import Ganache from "ganache";
 
 import { prepareContracts } from "./helpers";
 import * as Codec from "@truffle/codec";
@@ -35,13 +35,21 @@ let sources = {
 };
 
 describe("Loading and unloading transactions", function () {
-  var provider;
-
-  var abstractions;
-  var compilations;
+  let provider;
+  let abstractions;
+  let compilations;
 
   before("Create Provider", async function () {
-    provider = Ganache.provider({ seed: "debugger", gasLimit: 7000000 });
+    provider = Ganache.provider({
+      seed: "debugger",
+      gasLimit: 7000000,
+      logging: {
+        quiet: true
+      },
+      miner: {
+        instamine: "strict"
+      }
+    });
   });
 
   before("Prepare contracts and artifacts", async function () {
@@ -53,6 +61,7 @@ describe("Loading and unloading transactions", function () {
   });
 
   it("Starts in transactionless mode and loads a transaction", async function () {
+    this.timeout(4000);
     let instance = await abstractions.Contract1.deployed();
     let receipt = await instance.run();
     let txHash = receipt.tx;
@@ -74,6 +83,7 @@ describe("Loading and unloading transactions", function () {
   });
 
   it("Unloads a transaction and loads a new one", async function () {
+    this.timeout(4000);
     let instance1 = await abstractions.Contract1.deployed();
     let receipt1 = await instance1.run();
     let txHash1 = receipt1.tx;

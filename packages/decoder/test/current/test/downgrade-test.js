@@ -2,7 +2,7 @@ const debug = require("debug")("decoder:test:downgrade-test");
 const assert = require("chai").assert;
 const Big = require("big.js");
 const clonedeep = require("lodash.clonedeep");
-const Ganache = require("ganache-core");
+const Ganache = require("ganache");
 const path = require("path");
 const Web3 = require("web3");
 
@@ -25,7 +25,7 @@ describe("Graceful degradation when information is missing", function () {
     provider = Ganache.provider({
       seed: "decoder",
       gasLimit: 7000000,
-      vmErrorsOnRPCResponse: false
+      logging: { quiet: true }
     });
     web3 = new Web3(provider);
     accounts = await web3.eth.getAccounts();
@@ -290,6 +290,36 @@ describe("Graceful degradation when information is missing", function () {
     assert.strictEqual(decodedFunction.value.selector, selector);
   });
 
+  it("Decodes transactions sent to the instance via additionalContexts", async function () {
+    let mangledCompilations = clonedeep(compilations);
+    let downgradeTest = mangledCompilations[0].contracts.find(
+      contract => contract.contractName === "DowngradeTest"
+    );
+    downgradeTest.deployedBytecode = undefined;
+
+    let deployedContract = await abstractions.DowngradeTest.new();
+    let decoder = await Decoder.forContractInstance(deployedContract, {
+      projectInfo: { compilations: mangledCompilations }
+    });
+
+    let result = await deployedContract.simple(1);
+    let resultHash = result.tx;
+    let resultTx = await web3.eth.getTransaction(resultHash);
+
+    let decoding = await decoder.decodeTransaction(resultTx);
+
+    assert.strictEqual(decoding.decodingMode, "full");
+    assert.strictEqual(decoding.kind, "function");
+    assert.strictEqual(decoding.abi.name, "simple");
+    assert.lengthOf(decoding.arguments, 1);
+    assert.strictEqual(decoding.arguments[0].value.type.typeClass, "uint");
+    assert.strictEqual(decoding.arguments[0].value.type.bits, 256);
+    assert.strictEqual(
+      Codec.Format.Utils.Inspect.unsafeNativize(decoding.arguments[0].value),
+      1
+    );
+  });
+
   it("Partially decodes internal functions when unreliable order", async function () {
     let mangledCompilations = clonedeep(compilations);
     mangledCompilations[0].unreliableSourceOrder = true;
@@ -368,7 +398,8 @@ describe("Graceful degradation when information is missing", function () {
       let source = mangledCompilations[0].sources.find(x => x); //find defined source
       let contractNode = source.ast.nodes.find(
         node =>
-          node.nodeType === "ContractDefinition" && node.name === "DowngradeTest"
+          node.nodeType === "ContractDefinition" &&
+          node.name === "DowngradeTest"
       );
       contractNode.usedErrors = undefined;
       await runErrorTestBody(mangledCompilations);
@@ -378,10 +409,12 @@ describe("Graceful degradation when information is missing", function () {
       let source = mangledCompilations[0].sources.find(x => x); //find defined source
       let contractNode = source.ast.nodes.find(
         node =>
-          node.nodeType === "ContractDefinition" && node.name === "DowngradeTest"
+          node.nodeType === "ContractDefinition" &&
+          node.name === "DowngradeTest"
       );
       let errorNode = contractNode.nodes.find(
-        node => node.nodeType === "ErrorDefinition" && node.name === "CustomError"
+        node =>
+          node.nodeType === "ErrorDefinition" && node.name === "CustomError"
       );
       errorNode.nodeType = "Ninja"; //fake node type which will prevent decoder
       //from recognizing it
@@ -392,7 +425,8 @@ describe("Graceful degradation when information is missing", function () {
       let source = mangledCompilations[0].sources.find(x => x); //find defined source
       let contractNode = source.ast.nodes.find(
         node =>
-          node.nodeType === "ContractDefinition" && node.name === "DowngradeTest"
+          node.nodeType === "ContractDefinition" &&
+          node.name === "DowngradeTest"
       );
       let structNode = contractNode.nodes.find(
         node => node.nodeType === "StructDefinition" && node.name === "Pair"
@@ -579,12 +613,17 @@ async function runErrorTestBody(mangledCompilations) {
 
   //we need the raw return data, and contract.call() does not exist yet,
   //so we're going to have to use web3.eth.call()
-
-  let data = await web3.eth.call({
-    to: deployedContract.address,
-    data: selector
-  });
-
+  let data;
+  // NOTE we wrap this in `try`/`catch` to accommodate new eth_call behavior
+  // see https://github.com/trufflesuite/ganache/issues/1496
+  try {
+    await web3.eth.call({
+      to: deployedContract.address,
+      data: selector
+    });
+  } catch (error) {
+    data = error.data;
+  }
   let decodings = await decoder.decodeReturnValue(abiEntry, data);
   assert.lengthOf(decodings, 1);
   let decoding = decodings[0];

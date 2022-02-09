@@ -118,6 +118,11 @@ module.exports = {
           path.resolve(__dirname, "../environment")
         ],
         use: "shebang-loader"
+      },
+      {
+        //needed to get things working with lerna 4.0
+        test: /rx\.lite\.aggregates\.js$/,
+        parser: { amd: false }
       }
     ]
   },
@@ -132,6 +137,7 @@ module.exports = {
     /^@truffle\/db/,
     // this will be installed as a dependency of packages/truffle
     /^@truffle\/db-loader/,
+    /^ganache$/,
     // this is the commands portion shared by cli.js and console-child.js
     /^\.\/commands.bundled.js$/
   ],

@@ -3,7 +3,7 @@ const debug = debugModule("debugger:test:solidity");
 
 import { assert } from "chai";
 
-import Ganache from "ganache-core";
+import Ganache from "ganache";
 
 import { prepareContracts, lineOf } from "./helpers";
 import Debugger from "lib/debugger";
@@ -19,8 +19,10 @@ contract SingleCall {
   event Called();
   event Done();
 
-  function run() public {
+  //note this function should call generated sources at startup
+  function run(uint x) public returns (uint) {
     emit Called();
+    return x;
   }
 
   function runSha() public {
@@ -146,13 +148,21 @@ let sources = {
 };
 
 describe("Solidity Debugging", function () {
-  var provider;
-
-  var abstractions;
-  var compilations;
+  let provider;
+  let abstractions;
+  let compilations;
 
   before("Create Provider", async function () {
-    provider = Ganache.provider({ seed: "debugger", gasLimit: 7000000 });
+    provider = Ganache.provider({
+      seed: "debugger",
+      gasLimit: 7000000,
+      logging: {
+        quiet: true
+      },
+      miner: {
+        instamine: "strict"
+      }
+    });
   });
 
   before("Prepare contracts and artifacts", async function () {
@@ -264,11 +274,11 @@ describe("Solidity Debugging", function () {
   });
 
   describe("Function Depth", function () {
-    it("remains at 1 in absence of inner function calls", async function () {
-      const maxExpected = 1;
+    it("remains at 0 in absence of inner function calls", async function () {
+      const maxExpected = 0;
 
       let instance = await abstractions.SingleCall.deployed();
-      let receipt = await instance.run();
+      let receipt = await instance.run(1);
       let txHash = receipt.tx;
 
       let bugger = await Debugger.forTx(txHash, {
@@ -281,6 +291,8 @@ describe("Solidity Debugging", function () {
 
       do {
         await bugger.stepNext();
+        //note that we use stepNext, which skips internal sources...
+        //it may go above 0 while inside an internal source
         finished = bugger.view(trace.finished);
 
         let actual = bugger.view(solidity.current.functionDepth);
@@ -323,8 +335,9 @@ describe("Solidity Debugging", function () {
       try {
         await instance.run(); //this will throw because of the revert
       } catch (error) {
-        txHash = error.hashes[0]; //it's the only hash involved
+        txHash = error.receipt.transactionHash;
       }
+      assert.isDefined(txHash, "should have errored and set txHash");
 
       let bugger = await Debugger.forTx(txHash, {
         provider,

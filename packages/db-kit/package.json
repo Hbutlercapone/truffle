@@ -1,6 +1,6 @@
 {
   "name": "@truffle/db-kit",
-  "version": "0.1.44",
+  "version": "0.1.53",
   "description": "Utility belt for Truffle and @truffle/db",
   "keywords": [
     "smart-contract",
@@ -41,6 +41,7 @@
     "@types/node": "12.12.21",
     "@types/react": "^17.0.2",
     "@types/web3": "^1.0.20",
+    "eslint-plugin-react-hooks": "^4.3.0",
     "jest": "^26.5.2",
     "madge": "^5.0.1",
     "ts-jest": "^26.4.1",
@@ -55,14 +56,14 @@
     "url": "https://github.com/trufflesuite/truffle/issues"
   },
   "dependencies": {
-    "@truffle/codec": "^0.11.19",
-    "@truffle/compile-common": "^0.7.22",
-    "@truffle/compile-solidity": "^6.0.2",
-    "@truffle/config": "^1.3.13",
-    "@truffle/db": "^0.5.41",
-    "@truffle/decoder": "^5.1.1",
-    "@truffle/environment": "^0.2.82",
-    "@truffle/fetch-and-compile": "^0.1.18",
+    "@truffle/codec": "^0.11.25",
+    "@truffle/compile-common": "^0.7.26",
+    "@truffle/compile-solidity": "^6.0.11",
+    "@truffle/config": "^1.3.17",
+    "@truffle/db": "^0.5.50",
+    "@truffle/decoder": "^5.1.10",
+    "@truffle/environment": "^0.2.91",
+    "@truffle/fetch-and-compile": "^0.3.1",
     "ink": "^3.0.8",
     "ink-big-text": "^1.2.0",
     "ink-divider": "^3.0.0",

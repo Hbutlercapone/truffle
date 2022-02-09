@@ -9,10 +9,25 @@ export interface FetchAndCompileResult {
   fetchedVia: string;
 }
 
+export interface FetchAndCompileMultipleResult {
+  results: {
+    [address: string]: FetchAndCompileResult;
+  };
+  failures: {
+    [address: string]: FetchAndCompileFailureRecord;
+  };
+}
+
+//for debugger
 export interface FetchExternalErrors {
   fetch: string[]; //addresses
   compile: string[]; //addresses
   fetchers: string[]; //fetcher names
+}
+
+export interface FetchAndCompileFailureRecord {
+  reason?: FailureType;
+  error?: Error;
 }
 
 export interface Recognizer {
@@ -22,7 +37,11 @@ export interface Recognizer {
     info: FetchAndCompileResult,
     address: string
   ): void | Promise<void>;
-  markUnrecognizable(address: string, reason?: FailureType): void;
+  markUnrecognizable(
+    address: string,
+    reason?: FailureType,
+    error?: Error
+  ): void;
   markBadFetcher(fetcherName: string): void;
 }
 

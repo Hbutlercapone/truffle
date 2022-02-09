@@ -10,6 +10,7 @@ const findContracts = require("@truffle/contract-sources");
 const Config = require("@truffle/config");
 const { Profiler } = require("@truffle/profiler");
 const { requiredSources } = require("./profiler");
+const { Compilations } = require("@truffle/compile-common");
 
 const { compileJson } = require("./vyper-json");
 
@@ -139,67 +140,69 @@ async function compileNoJson({ paths: sources, options, version }) {
   targets.forEach(sourcePath => {
     promises.push(
       new Promise((resolve, reject) => {
-        execVyper(options, sourcePath, version, function (
-          error,
-          compiledContract
-        ) {
-          if (error) return reject(error);
+        execVyper(
+          options,
+          sourcePath,
+          version,
+          function (error, compiledContract) {
+            if (error) return reject(error);
 
-          debug("compiledContract: %O", compiledContract);
+            debug("compiledContract: %O", compiledContract);
 
-          // remove first extension from filename
-          const extension = path.extname(sourcePath);
-          const basename = path.basename(sourcePath, extension);
+            // remove first extension from filename
+            const extension = path.extname(sourcePath);
+            const basename = path.basename(sourcePath, extension);
 
-          // if extension is .py, remove second extension from filename
-          const contractName =
-            extension !== ".py"
-              ? basename
-              : path.basename(basename, path.extname(basename));
+            // if extension is .py, remove second extension from filename
+            const contractName =
+              extension !== ".py"
+                ? basename
+                : path.basename(basename, path.extname(basename));
 
-          const sourceContents = readSource(sourcePath);
-          const deployedSourceMap = compiledContract.source_map //there is no constructor source map
-            ? JSON.parse(compiledContract.source_map)
-            : undefined;
+            const sourceContents = readSource(sourcePath);
+            const deployedSourceMap = compiledContract.source_map //there is no constructor source map
+              ? JSON.parse(compiledContract.source_map)
+              : undefined;
 
-          const contractDefinition = {
-            contractName: contractName,
-            sourcePath: sourcePath,
-            source: sourceContents,
-            abi: JSON.parse(compiledContract.abi),
-            bytecode: {
-              bytes: compiledContract.bytecode.slice(2), //remove "0x" prefix
-              linkReferences: [] //no libraries in Vyper
-            },
-            deployedBytecode: {
-              bytes: compiledContract.bytecode_runtime.slice(2), //remove "0x" prefix
-              linkReferences: [] //no libraries in Vyper
-            },
-            deployedSourceMap,
-            compiler
-          };
+            const contractDefinition = {
+              contractName: contractName,
+              sourcePath: sourcePath,
+              source: sourceContents,
+              abi: JSON.parse(compiledContract.abi),
+              bytecode: {
+                bytes: compiledContract.bytecode.slice(2), //remove "0x" prefix
+                linkReferences: [] //no libraries in Vyper
+              },
+              deployedBytecode: {
+                bytes: compiledContract.bytecode_runtime.slice(2), //remove "0x" prefix
+                linkReferences: [] //no libraries in Vyper
+              },
+              deployedSourceMap,
+              compiler
+            };
 
-          const compilation = {
-            sources: [
-              {
-                sourcePath,
-                contents: sourceContents,
-                language: "Vyper"
-              }
-            ],
-            contracts: [contractDefinition],
-            compiler,
-            sourceIndexes: [sourcePath]
-          };
+            const compilation = {
+              sources: [
+                {
+                  sourcePath,
+                  contents: sourceContents,
+                  language: "Vyper"
+                }
+              ],
+              contracts: [contractDefinition],
+              compiler,
+              sourceIndexes: [sourcePath]
+            };
 
-          resolve(compilation);
-        });
+            resolve(compilation);
+          }
+        );
       })
     );
   });
   const compilations = await Promise.all(promises);
 
-  return { compilations };
+  return Compilations.promoteCompileResult({ compilations });
 }
 
 const Compile = {
@@ -214,7 +217,7 @@ const Compile = {
     // no vyper files found, no need to check vyper
     // (note that JSON-only will not activate vyper)
     if (vyperFiles.length === 0) {
-      return { compilations: [] };
+      return Compilations.emptyWorkflowCompileResult();
     }
 
     Compile.display(vyperFiles, options);
@@ -240,13 +243,20 @@ const Compile = {
 
     // no vyper targets found, no need to check Vyper
     if (vyperFilesStrict.length === 0) {
-      return { compilations: [] };
+      return Compilations.emptyWorkflowCompileResult();
     }
 
     const { allSources, compilationTargets } = await requiredSources(
       options.with({
         paths: vyperFilesStrict,
-        base_path: options.contracts_directory
+        base_path: options.contracts_directory,
+        compiler: {
+          name: "vyper"
+          //HACK: we leave version empty because we haven't determined
+          //it at this point and we don't want to pay the cost of doing
+          //so, and nothing in the resolver sources currently uses
+          //precise vyper version
+        }
       })
     );
 
@@ -258,7 +268,7 @@ const Compile = {
 
     // no vyper targets found, no need to activate Vyper
     if (vyperTargets.length === 0) {
-      return { compilations: [] };
+      return Compilations.emptyWorkflowCompileResult();
     }
 
     //having gotten the sources from the resolver, we invoke compileJson
@@ -299,7 +309,7 @@ const Compile = {
     );
     // no vyper targets found, no need to check Vyper
     if (vyperFilesStrict.length === 0) {
-      return { compilations: [] };
+      return Compilations.emptyWorkflowCompileResult();
     }
 
     return await Compile.sourcesWithDependencies({
@@ -319,7 +329,7 @@ const Compile = {
     const profiler = await new Profiler({});
     const updated = await profiler.updated(options);
     if (updated.length === 0) {
-      return { compilations: [] };
+      return Compilations.emptyWorkflowCompileResult();
     }
     return await Compile.sourcesWithDependencies({
       paths: updated,
